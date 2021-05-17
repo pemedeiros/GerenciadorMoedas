@@ -1,7 +1,10 @@
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
-from datetime import date
+from datetime import date, datetime
+from time import sleep
+from lib.arquivo import arqexiste, criararquivo, lerarquivo, cadastrar, valor_total, taxas, filtro_data, filtro_nome
+from lib.interface import menu, cabecalho, leiaint
 
 moeda = {
     'BRL': 1,
@@ -17,12 +20,10 @@ moeda = {
     'CHF': 0,
     'SEK': 0
 }
+
 valor_total_operacoes = 0.0
 valor_total_ganho = 0.0
 valor_para_real = 0.0
-nome_cliente = input("Digite o nome do cliente: ")
-hoje = date.today()
-data_da_operação = hoje.strftime("%d/%m/%Y")
 
 req = requests.get('http://br.advfn.com/cambio/graficos/brl')
 if req.status_code == 200:
@@ -50,47 +51,75 @@ if req.status_code == 200:
     df_att = pd.concat([df2, df_att])
 
 
-lista_chave = list(moeda.keys())
-lista_valores = list(moeda.values())
-while True:
-    print("MENU DE MOEDAS\n")
-    for k in moeda.keys():
-        print(f'{lista_chave.index(k)} - {k}')
-    print()
+    arq = 'ListaOperacoes.txt'
+    if not arqexiste(arq):
+        criararquivo(arq)
+    while True:
+        resposta = menu(
+            ['Câmbio de moedas','Ver lista total das operações', 'Ver valor total das operações','Ver valor total das taxas cobradas','Filtrar por data','Filtrar por cliente' ,'Sair',
+             ])
+        if resposta == 1:
+            # Cadastrar
+            cabecalho('NOVA CONVERSÃO')
+            nome = str(input('Digite o nome do cliente:'))
+            hoje = date.today()
+            data_da_operação = hoje.strftime("%d/%m/%Y")
+            lista_chave = list(moeda.keys())
+            lista_valores = list(moeda.values())
+            print("MENU DE MOEDAS\n")
+            for k in moeda.keys():
+                print(f'{lista_chave.index(k)} - {k}')
+            print()
 
 
-    def get_moeda(tipo_moeda: str):
-        opcao = int(input(f"Digite o código de moeda de {tipo_moeda}: "))
-        return lista_chave[opcao], lista_valores[opcao]
+            def get_moeda(tipo_moeda: str):
+                opcao = int(input(f"Digite o código de moeda de {tipo_moeda}: "))
+                return lista_chave[opcao], lista_valores[opcao]
 
 
-    nome_moeda_origem, valor_moeda_origem = get_moeda("origem")
-    nome_moeda_destino, valor_moeda_destino = get_moeda("destino")
+            nome_moeda_origem, valor_moeda_origem = get_moeda("origem")
+            nome_moeda_destino, valor_moeda_destino = get_moeda("destino")
 
-    quantia = float(input(f"Quantos(as) {nome_moeda_origem} você quer converter? "))
-    taxa_cobrada = quantia * 0.05
-    valor_convertido = quantia * 0.95
+            quantia = float(input(f"Quantos(as) {nome_moeda_origem} você quer converter? "))
+            taxa_cobrada = quantia * 0.05
+            valor_convertido = quantia * 0.95
 
-    if nome_moeda_origem == "BRL":
-        lucro = taxa_cobrada
-        valor_para_real = quantia
-    else:
-        lucro = taxa_cobrada * valor_moeda_origem
-        valor_para_real = quantia * valor_moeda_origem
+            if nome_moeda_origem == "BRL":
+                lucro = taxa_cobrada
+                valor_para_real = quantia
+            else:
+                lucro = taxa_cobrada * valor_moeda_origem
+                valor_para_real = quantia * valor_moeda_origem
 
-    valor_final = round(valor_convertido * valor_moeda_origem / valor_moeda_destino, 2)
-    print(f'Você terá {valor_final} ')
-    print(f'Nessa conversão, a empresa ganhou R$ {lucro}')
-    print(f'A moeda de origem é {nome_moeda_origem}')
-    print(f'A moeda de destino é {nome_moeda_destino}')
-    print(f'O valor original foi {quantia}')
-    print(f'O valor convertido foi {valor_final}')
-    valor_total_operacoes = valor_total_operacoes + valor_para_real
-    valor_total_ganho = valor_total_ganho + lucro
-    opcao = int(input("Digite 0 para sair"))
-    if opcao == 0:
-        print(f'O valor total das operações foi R${valor_total_operacoes}')
-        print(f'O valor total dos lucros foi R${valor_total_ganho}')
-        break
-
-
+            valor_final = round(valor_convertido * valor_moeda_origem / valor_moeda_destino, 2)
+            valor_total_operacoes = valor_total_operacoes + valor_para_real
+            cadastrar(arq, nome, lucro, valor_final, nome_moeda_origem, nome_moeda_destino, quantia, valor_convertido,
+                      data_da_operação, valor_total_operacoes)
+            sleep(2)
+        elif resposta == 2:
+            # Listar
+            lerarquivo(arq)
+            sleep(2)
+        elif resposta == 3:
+            valor_total(arq)
+            break
+        elif resposta == 4:
+            taxas(arq)
+            break
+        elif resposta == 5:
+            data_ini = str(input('Digite a data inicial: '))
+            data_filtroIni = datetime.strptime(data_ini, "%d/%m/%Y")
+            data_fim = str(input('Digite a data final: '))
+            data_filtroFim = datetime.strptime(data_fim, "%d/%m/%Y")
+            filtro_data(arq, data_filtroIni, data_filtroFim)
+            break
+        elif resposta == 6:
+            nome = input("Digite o nome que deseja filtrar: ")
+            filtro_nome(arq, nome)
+            break
+        elif resposta == 7:
+            cabecalho('Saindo do sistema...Até mais.')
+            break
+        else:
+            print('\033[031mERRO! Digite uma opção válida.\33[m')
+            sleep(2)
